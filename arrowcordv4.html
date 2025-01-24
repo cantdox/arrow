@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArrowV4</title>
+    <style>
+        /* Styles remain the same */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: url('https://images.wallpapersden.com/image/download/cool-goku-amoled-black_bWZlaWqUmZqaraWkpJRqZmdlrWdtbWU.jpg') no-repeat center center fixed;
+            background-size: cover;
+            color: #FFFFFF;
+            font-family: monospace;
+            margin: 0;
+        }
+
+        .container {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            opacity: 1;
+        }
+
+        .title {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        input, button {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #FFFFFF;
+            border-radius: 5px;
+            background-color: black;
+            color: #FFFFFF;
+            font-size: 1em;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #444;
+        }
+
+        .auto-beefer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .auto-beefer label {
+            font-size: 1.1em;
+            color: white;
+            margin-right: 5px;
+        }
+
+        .delay-slider {
+            margin-top: 10px;
+            width: 90%;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            background: black;
+            height: 5px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #FFFFFF;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: #FFFFFF;
+            cursor: pointer;
+        }
+
+        .file-input-container {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        #fileInput {
+            width: 75%;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="messageUI">
+    <div class="title">ArrowV4</div>
+    <input type="text" id="tokenInput1" placeholder="Enter token 1" required>
+    <input type="text" id="tokenInput2" placeholder="Enter token 2">
+    <input type="text" id="tokenInput3" placeholder="Enter token 3">
+    <input type="text" id="tokenInput4" placeholder="Enter token 4">
+    <input type="text" id="userIdInput" placeholder="User ID">
+    <input type="text" id="channelIdInput" placeholder="Channel ID" required>
+    <input type="text" id="messageInput" placeholder="Message" required>
+    <div class="file-input-container">
+        <div class="auto-beefer">
+            <label for="autoBeeferCheckbox">Auto 1v1</label>
+            <input type="checkbox" id="autoBeeferCheckbox">
+        </div>
+        <input type="file" id="fileInput" accept=".txt" required>
+    </div>
+    <button id="sendMessageButton">Send Message</button>
+    <input type="range" id="delaySlider" class="delay-slider" min="0.00" max="10" value="0.00" step="0.01">
+    <label for="delaySlider" id="delayLabel">Delay: 0 second</label>
+</div>
+
+<script>
+    let autoSending = false;
+    let words = [];
+    let messageCount = 0;  // Counter for messages sent
+    let currentTokenIndex = 0;  // Current token index for sending messages
+    let messageIndex = 0;  // Current message index for sending messages
+
+    async function sendMessage(token, channelId, message) {
+        const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+            method: 'POST',
+            headers: {
+                'Authorization': token,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ content: message })
+        });
+
+        // If the response is a rate limit error, return false
+        if (response.status === 429) {
+            console.log(`Rate limited with token: ${token}`);
+            return false;  // Indicates rate limit
+        }
+        
+        return true; // Indicates successful message sent
+    }
+
+    async function triggerTypingEffect(tokens, channelId) {
+        const userId = document.getElementById('userIdInput').value;
+        
+        // Start at a random word
+        messageIndex = Math.floor(Math.random() * words.length);
+
+        while (autoSending && currentTokenIndex < tokens.length) {
+            const token = tokens[currentTokenIndex];
+
+            if (messageIndex < words.length) {
+                const word = words[messageIndex];
+
+                // Send message
+                const success = await sendMessage(token, channelId, word);
+                if (!success) {
+                    // If rate limited, switch to the next token
+                    currentTokenIndex++;
+                    messageIndex++; // Move to the next message
+                    continue; // Try again with the new token
+                }
+
+                messageCount++;
+
+                // After every third message, send a ping
+                if (messageCount % 3 === 0 && userId) {
+                    await sendMessage(token, channelId, `<@${userId}>`);
+                }
+
+                // Increment message index
+                messageIndex++;
+
+                // Add a delay before the next message
+                const delay = parseFloat(document.getElementById('delaySlider').value) * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            } else {
+                // If we've run out of messages, reset the message index and move to the next token
+                messageIndex = 0; // Reset message index for the next token
+                currentTokenIndex++; // Move to the next token
+            }
+        }
+
+        // Reset when sending is finished
+        currentTokenIndex = 0; 
+        messageIndex = 0; 
+    }
+
+    document.getElementById('sendMessageButton').onclick = function() {
+        const tokens = [
+            document.getElementById('tokenInput1').value,
+            document.getElementById('tokenInput2').value,
+            document.getElementById('tokenInput3').value,
+            document.getElementById('tokenInput4').value,
+        ];
+        const userId = document.getElementById('userIdInput').value;
+        const channelId = document.getElementById('channelIdInput').value;
+        const message = document.getElementById('messageInput').value;
+
+        const shouldPingUserId = userId && !document.getElementById('autoBeeferCheckbox').checked;
+        const finalMessage = `${message}${shouldPingUserId ? ` <@${userId}>` : ''}`.trim();
+
+        // Send a message using the first token
+        if (tokens[0]) {
+            sendMessage(tokens[0], channelId, finalMessage);
+        }
+        document.getElementById('messageInput').value = ''; // Clear input field
+    };
+
+    document.getElementById('messageInput').addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const tokens = [
+                document.getElementById('tokenInput1').value,
+                document.getElementById('tokenInput2').value,
+                document.getElementById('tokenInput3').value,
+                document.getElementById('tokenInput4').value,
+            ];
+            const userId = document.getElementById('userIdInput').value;
+            const channelId = document.getElementById('channelIdInput').value;
+            const message = this.value;
+
+            const shouldPingUserId = userId && !document.getElementById('autoBeeferCheckbox').checked;
+            const finalMessage = `${message}${shouldPingUserId ? ` <@${userId}>` : ''}`.trim();
+
+            // Send a message using the first token
+            if (tokens[0]) {
+                sendMessage(tokens[0], channelId, finalMessage);
+            }
+            this.value = ''; // Clear input field
+        }
+    });
+
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                words = text.split('\n').filter(word => word);
+            };
+            reader.readAsText(file);
+        }
+    });
+
+    document.getElementById('autoBeeferCheckbox').addEventListener('change', function() {
+        if (this.checked) {
+            autoSending = true;
+            const channelId = document.getElementById('channelIdInput').value;
+            const tokens = [
+                document.getElementById('tokenInput1').value,
+                document.getElementById('tokenInput2').value,
+                document.getElementById('tokenInput3').value,
+                document.getElementById('tokenInput4').value,
+            ];
+            // Start sending messages with the tokens
+            triggerTypingEffect(tokens, channelId);
+        } else {
+            autoSending = false;
+            currentTokenIndex = 0; // Reset token index
+            messageIndex = 0; // Reset message index
+        }
+    });
+
+    document.getElementById('delaySlider').addEventListener('input', function() {
+        const value = this.value;
+        document.getElementById('delayLabel').textContent = `Delay: ${value} second${value > 1 ? 's' : ''}`;
+    });
+</script>
+</body>
+</html>
